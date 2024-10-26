@@ -1,0 +1,75 @@
+name: Build and deploy Node.js app to Azure Web App - Group8Backend
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: List files in the repository
+        run: |
+          dir # For Windows
+
+      - name: Set up Node.js version
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.x'
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          npm install
+
+      - name: Zip backend artifact for deployment
+        run: |
+          cd backend
+          Compress-Archive -Path '.' -DestinationPath 'release.zip' -Force # Zip the entire backend folder
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-app
+          path: backend/release.zip # This should be correct as it refers to the release.zip in backend directory
+
+  deploy:
+    runs-on: windows-latest
+    needs: build
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-app
+          path: ./backend # Download artifact to the backend directory
+
+      - name: List downloaded files
+        run: |
+          dir ./backend # List files to verify if release.zip is present
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_4BE6D6B9416645EAA3CB32B318DC6073 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_CDCD683E8DD1458898E6747ECEACCEDE }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_FE1C9A6EDA0D484BAD425D34CD674270 }}
+
+      - name: 'Deploy to Azure Web App'
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'group8Backend'
+          package: ./backend/release.zip  # Path to the downloaded release.zip
