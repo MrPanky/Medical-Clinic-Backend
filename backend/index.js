@@ -14,7 +14,7 @@ port:3306,
 
 app.use(express.json());
 app.use(cors({
-    origin: 'https://group8md.azurewebsites.net/backend', 
+    origin: 'https://group8md.azurewebsites.net', 
   }));
   
 
@@ -479,4 +479,6 @@ app.get('/patient/:id', (req, res) => {
 
 
 
-app.listen(3000, () => console.log('Server running on port 3000! (Connected to backend!)'));
+app.listen(process.env.PORT || 3000, () => {
+    console.log('Server running on port 3000! (Connected to backend!)');
+  });
