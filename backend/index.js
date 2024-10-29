@@ -629,9 +629,104 @@ app.get("/view_referrals/:employee_ID", (req, res) => {
     })
 })
 
+//invoice queries
+// Get specific info for a patient
+app.post("/SearchPatient", (req, res) => {
+    const { patientID, option, choice} = req.body;
+
+    console.log(option);
+    console.log(patientID);
+    console.log(choice);
 
 
+   const q1 = "SELECT medical_ID, patient.billingID, first_name, last_name, address_line_1, address_line_2, city, state, zip, appointment_ID, dateTime, doctor, cost, isPaid , nurse, billing_cost_table.appointment_type, officeID FROM appointment, billing_cost_table, patient WHERE billing_cost_table.appointment_type = appointment.appointment_type AND patient.medical_ID = appointment.patientmedicalID AND appointment.patientmedicalID = ? AND appointment.isPaid = 0;";
+    const q2 = "SELECT medical_ID, first_name, last_name, address_line_1, address_line_2, city, state, zip, invoice.appointment_ID, dateTime, doctor, cost, isPaid , nurse, billing_cost_table.appointment_type, officeID, invoice.created FROM appointment, billing_cost_table, patient, invoice WHERE billing_cost_table.appointment_type = appointment.appointment_type AND patient.medical_ID = appointment.patientmedicalID AND appointment.appointment_ID = invoice.appointment_ID AND appointment.patientmedicalID = ? AND appointment.isPaid = 1;";
+    const q3 = "SELECT medical_ID FROM patient WHERE medical_ID = ?;";
 
+    if(!option){
+        if(!choice){
+            console.log("q1");
+            db.query(q1, [patientID], (err, data) => {
+                if (err) return res.status(500).json(err);
+                return res.json(data);
+            });
+        }else{
+            console.log("q2");
+            db.query(q2, [patientID], (err, data) => {
+                if (err) return res.status(500).json(err);
+                return res.json(data);
+            });
+        }
+        
+    }else{
+        db.query(q3, [patientID], (err, data) => {
+            if (err) return res.status(500).json(err);
+            return res.json(data);
+        });
+    }
+    return;
+});
+
+// Get an office location for invoice purposes
+app.post("/Created_invoice", (req, res) => {
+    const {offID} = req.body;
+    console.log(offID);
+
+    const q = "SELECT * FROM office WHERE location_ID = ?;";
+
+    db.query(q, [offID], (err, data) => {
+        if (err) return res.status(500).json(err);
+        return res.json(data);
+    });
+
+});
+
+
+// Get Appointments that have not been paid in 2 weeks
+app.post("/Past_Due_Patients", (req, res) => {
+
+    const q = "SELECT  DISTINCT patient.medical_ID, patient.first_name, patient.last_name, patient.personal_email, home_phone, work_phone, cell_phone FROM appointment, patient WHERE (appointment.dateTime < DATE_SUB(CURDATE(), INTERVAL 14 DAY)) AND appointment.isPaid = 0 AND patient.medical_ID = appointment.patientmedicalID;";
+
+    db.query(q, (err, data) => {
+        if (err) return res.status(500).json(err);
+        return res.json(data);
+    });
+
+});
+
+// Switch appointment to paid
+app.put("/See_Patient_Balance", (req, res) => {
+    const  patientID  = req.params.id;
+
+    const values =[
+        req.body.ID
+    ]
+
+    console.log(values);
+    const q = "UPDATE appointment SET isPaid = 1 WHERE appointment_ID = ?;";
+    db.query(q, [values, patientID], (err, data) => {
+        if (err) return res.status(500).json(err);
+        return res.json(data);
+    });
+});
+
+// Insert invoice
+app.post("/See_Patient_Balance", (req, res) => {
+    const  q  = req.body.q;
+
+    const values =[
+        req.body.q
+    ]
+
+
+    console.log(q);
+    const temp = "INSERT INTO invoices (appointment_ID) VALUES (?);";
+    db.query(q, (err, data) => {
+        if (err) return res.status(500).json(err);
+        return res.json(data);
+    });
+});
+//end of invoice queries
 
 
 app.listen(process.env.PORT || 3000, () => {
