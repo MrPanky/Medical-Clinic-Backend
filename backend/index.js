@@ -19,7 +19,11 @@ app.use(cors({
   
 
 app.get('/', (req, res) => {
-    res.json("Hello this is mr.backend! 乁( ⁰͡ Ĺ̯ ⁰͡ ) ㄏ");
+    res.status(200).json("Hello this is mr.backend! 乁( ⁰͡ Ĺ̯ ⁰͡ ) ㄏ");
+});
+
+app.get('/ping', (req, res) => {
+    res.status(200).send("I'm still alive!");
 });
 
 // Login route
