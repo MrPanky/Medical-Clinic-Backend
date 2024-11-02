@@ -13,10 +13,10 @@ port:3306,
 });
 
 app.use(express.json());
-app.use(cors({
-    origin: 'https://group8md.azurewebsites.net', 
-  }));
-  
+const allowedOrigins = [
+  'https://group8md.azurewebsites.net',
+  'http://localhost:3006' 
+];
 
 app.get('/', (req, res) => {
     res.status(200).json("Hello this is mr.backend! 乁( ⁰͡ Ĺ̯ ⁰͡ ) ㄏ");
