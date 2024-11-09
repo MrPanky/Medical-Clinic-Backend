@@ -105,6 +105,20 @@ app.get("/doctors", (req, res) => {
     });
 });
 
+// Get doctor by employee_ID
+app.get("/doctors/:employee_ID", (req, res) => {
+    const employee_id = req.params.employee_ID;
+    const q = "SELECT * FROM doctors WHERE employee_ID = ?";
+    
+    db.query(q, [employee_id], (err, data) => {
+        if (err) return res.status(500).json(err);
+        if (data.length === 0) return res.status(404).json("Doctor not found.");
+        
+        return res.json(data[0]); // Return the doctor data
+    });
+});
+
+
 // Create doctor
 app.post("/doctors", (req, res) => {
     console.log(req.body);
@@ -128,6 +142,25 @@ app.post("/doctors", (req, res) => {
         req.body.created
     ];
 
+    // Create a schedule ID (you might want to implement a better ID generation)
+    const schedule_ID = req.body.employee_ID; // or generate a new one if necessary
+
+    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' '); // Current date for last_edited
+    const q3 = "INSERT INTO employee_schedule_location (schedule_ID, mon_avail, tues_avail, wed_avail, thurs_avail, fri_avail, working_time, created, creatorID, last_edited, last_editedID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    const scheduleValues = [
+        schedule_ID,
+        req.body.availabilityMon,
+        req.body.availabilityTues,
+        req.body.availabilityWed,
+        req.body.availabilityThurs,
+        req.body.availabilityFri,
+        "9 AM - 5 PM", // Set working_time
+        req.body.created,
+        req.body.employee_ID, // Assuming the creatorID is the employee's ID
+        currentDate, // Set last_edited to current date
+        req.body.employee_ID // Assuming the last_editedID is also the employee's ID
+    ];
+
     db.query(q1, employeeValues, (err) => {
         if (err) {
             return res.status(500).json({ error: "Error inserting into employee table", details: err });
@@ -137,10 +170,17 @@ app.post("/doctors", (req, res) => {
             if (err) {
                 return res.status(500).json({ error: "Error inserting into doctors table", details: err });
             }
-            return res.json("A doctor has been created successfully!");
+
+            db.query(q3, scheduleValues, (err) => {
+                if (err) {
+                    return res.status(500).json({ error: "Error inserting into employee_schedule_location table", details: err });
+                }
+                return res.json("A doctor has been created successfully!");
+            });
         });
     });
 });
+
 
 // Update doctor
 app.put("/doctors/:employee_ID", (req, res) => {
@@ -173,22 +213,27 @@ app.put("/doctors/:employee_ID", (req, res) => {
     });
 });
 
-// Delete doctor
+// Delete Doctor and Clear Schedule
 app.delete("/doctors/:employee_ID", (req, res) => {
-    const employee_id = req.params.employee_ID;
+    const employee_ID = req.params.employee_ID;
+    
     const q1 = "DELETE FROM doctors WHERE employee_ID = ?";
     const q2 = "DELETE FROM employee WHERE employee_ID = ?";
+    const q3 = "DELETE FROM employee_schedule_location WHERE schedule_ID = ?"; // Assuming schedule_ID is the same as employee_ID
 
-    db.query(q1, [employee_id], (err) => {
+    db.query(q1, [employee_ID], (err) => {
         if (err) return res.status(500).json(err);
 
-        db.query(q2, [employee_id], (err) => {
+        db.query(q2, [employee_ID], (err) => {
             if (err) return res.status(500).json(err);
-            return res.json("Doctor and employee have been deleted!");
+
+            db.query(q3, [employee_ID], (err) => {
+                if (err) return res.status(500).json(err);
+                return res.json("Doctor and associated schedule have been deleted!");
+            });
         });
     });
 });
-
 // Create Office Staff
 app.post("/staff/officestaff", (req, res) => {
     const { employee_ID, first_name, last_name, phone_number, email, address, manager, created, creatorID } = req.body;
@@ -301,6 +346,35 @@ app.put("/staff/billingstaff/:employee_ID", (req, res) => {
     });
 });
 
+// Get Office Staff by Employee ID
+app.get("/staff/officestaff/:employee_ID", (req, res) => {
+    const employee_ID = req.params.employee_ID;
+
+    const query = "SELECT first_name, last_name, phone_number, address FROM officestaff WHERE employee_ID = ?";
+    const values = [employee_ID];
+
+    db.query(query, values, (err, results) => {
+        if (err) return res.status(500).json(err);
+        if (results.length === 0) return res.status(404).json("Office staff not found.");
+        return res.json(results[0]); // Return the first matching record
+    });
+});
+
+// Get Billing Staff by Employee ID
+app.get("/staff/billingstaff/:employee_ID", (req, res) => {
+    const employee_ID = req.params.employee_ID;
+
+    const query = "SELECT first_name, last_name, phone_number, address FROM billingstaff WHERE employee_ID = ?";
+    const values = [employee_ID];
+
+    db.query(query, values, (err, results) => {
+        if (err) return res.status(500).json(err);
+        if (results.length === 0) return res.status(404).json("Billing staff not found.");
+        return res.json(results[0]); // Return the first matching record
+    });
+});
+
+
 
 // Director view
 app.get("/director_view/:employee_ID", (req, res) => {
@@ -384,6 +458,41 @@ app.get("/staff_management", (req, res) => {
         return res.json(staff); // Send back the staff data
     });
 });
+// Delete Office Staff
+app.delete("/staff/officestaff/:employee_ID", (req, res) => {
+    const employee_ID = req.params.employee_ID;
+    
+    const q1 = "DELETE FROM officestaff WHERE employee_ID = ?";
+    const q2 = "DELETE FROM employee WHERE employee_ID = ?";
+
+    db.query(q1, [employee_ID], (err) => {
+        if (err) return res.status(500).json(err);
+
+        db.query(q2, [employee_ID], (err) => {
+            if (err) return res.status(500).json(err);
+            return res.json("Office Staff member has been deleted!");
+        });
+    });
+});
+
+// Delete Billing Staff
+app.delete("/staff/billingstaff/:employee_ID", (req, res) => {
+    const employee_ID = req.params.employee_ID;
+    
+    const q1 = "DELETE FROM billingstaff WHERE employee_ID = ?";
+    const q2 = "DELETE FROM employee WHERE employee_ID = ?";
+
+    db.query(q1, [employee_ID], (err) => {
+        if (err) return res.status(500).json(err);
+
+        db.query(q2, [employee_ID], (err) => {
+            if (err) return res.status(500).json(err);
+            return res.json("Billing Staff member has been deleted!");
+        });
+    });
+});
+
+
 
 // Get appointments for a specific director's office
 app.get("/appointments/:directorId", (req, res) => {
@@ -478,271 +587,71 @@ app.get('/patient/:id', (req, res) => {
     });
 });
 
-//Doctor view
-app.get("/doctor_view/:employee_ID", (req, res) => {
-    const doctorId = req.params.employee_ID;
+app.get('/office_statistics', async (req, res) => {
+    const { location, startDate, endDate } = req.query;
 
-    const q_doctors =
-        //"SELECT * FROM employee WHERE employee_ID = ?";
-        //'SELECT employee_ID FROM doctors WHERE employee_ID = ?';
-        `
-    SELECT d.employee_ID, d.first_name, d.last_name, d.specialty, d.availabilityMon, d.availabilityTues, d.availabilityWed, d.availabilityThurs, d.availabilityFri
-    FROM doctors d 
-    WHERE employee_ID = ?`;
-    console.log('executing query:', q_doctors, [doctorId]);
-    db.query(q_doctors, [doctorId], (err, doctors) => {
-        console.log(doctorId);
-        if (typeof doctorId === 'string') {
-            console.log('doctorId is a string');
-        }
-        if (err) return res.status(500).json(err);
-        if (doctors.length === 0) return res.status(404).json("No doctors found.");
-
-        return res.json(doctors); // Send back the doctors data
-    });
-});
-
-app.get("/appointments/:employee_ID", (req, res) => {
-    const doctorId = req.params.employee_ID;
-
-    const q_doc_apps =
-        `SELECT * 
-    FROM appointment 
-    WHERE doctorID = ?`;
-
-    console.log('executing query:', q_doc_apps, [doctorId]);
-    db.query(q_doc_apps, [doctorId], (err, appointment) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json(err);
-        }
-        return res.json(appointment);
-    });
-});
-
-app.get("/doc_availability/:employee_ID", (req, res) => {
-
-    const employeeId = req.params.employee_ID;
-
-    const q_doctor_availability =
-        `
-    SELECT availabilityMon, availabilityTues, availabilityWed, availabilityThurs, availabilityFri
-    FROM doctors
-    WHERE employee_ID = ?;
-    `
-    console.log('executing query:', q_doctor_availability, [employeeId]);
-    db.query(q_doctor_availability, [employeeId], (err, availability) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json(err);
-        }
-        return res.json(availability);
-    });
-});
-
-app.put("/update_doc_availability/:employee_ID", (req, res) => {
-    const employeeId = req.params.employee_ID;
-    //const monAvailability = req.body.monAvailability;
-    //console.log("value in req.body.availabilityMon = ", req.body.monAvailability)
-    const q_update_availability =
-        `
-        UPDATE doctors
-        SET availabilityMon = ?, availabilityTues = ?, availabilityWed = ?, availabilityThurs = ?, availabilityFri = ?
-        WHERE employee_ID = ?;
-        `
-    const availabilityByDay = [
-        req.body.monAvailability,
-        req.body.tuesAvailability,
-        req.body.wedAvailability,
-        req.body.thursAvailability,
-        req.body.friAvailability,
-    ]
-    console.log('executing query:', q_update_availability, [employeeId]);
-    db.query(q_update_availability, [...availabilityByDay, employeeId], (err, data) => {
-        if (err) {
-            return res.json(err);
-        }
-        return res.json("availability updated");
-    });
-});
-
-app.post("/create_referral/:employee_ID", (req, res) => {
-    //const employeeId = req.params.employee_ID;
-    //console.log("referral contains: ", req);
-    console.log(req.body.status);
-    const now = new Date();
-    const isoString = now.toISOString();
-    const mysqlDateTime = isoString.slice(0, 19).replace('T', ' '); 
-    console.log("the mysql datetime is...", mysqlDateTime);
-    console.log("the referral_ID is...", req.body.referral_ID)
-    console.log("the originating doctorID is ...", req.body.originating_doctor_ID)
-    const q_create_referral =
-        `
-    INSERT INTO referral (referral_ID, date_created, creatorID, created, patient_contact_info, originating_doctor_ID, originating_doctor_contact_info, receiving_doctor_ID, receiving_doctor_contact_info, patient_ID, reason, status)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?);
-    `
-    const values = [
-        req.body.referral_ID,
-        mysqlDateTime, 
-        req.body.creatorID, req.body.created,
-        req.body.patient_contact_info, req.body.originating_doctor_ID,
-        req.body.originating_doctor_contact_info, req.body.receiving_doctor_ID,
-        req.body.receiving_doctor_contact_info, req.body.patient_ID,
-        req.body.reason, req.body.status,
-    ]
-    console.log('executing query:', q_create_referral);
-    db.query(q_create_referral, [...values], (err, data) => {
-        if (err) return res.json(err);
-        return res.json("referral created");
-    })
-
-})
-
-//Get Doctor Last name
-app.get("/doctor_Lname/:employee_ID", (req, res) => {
-    const doctorId = req.params.employee_ID;
-
-    const q_doc_name = "SELECT last_name FROM doctors WHERE employee_ID = ?";
-
-    console.log("executing query", q_doc_name);
-    db.query(q_doc_name, [doctorId], (err, results) => {if (err) {
-        console.error(err);
-        return res.status(500).json(err);
+    // Validate parameters
+    if (!location || !startDate || !endDate) {
+        return res.status(400).json({ error: 'Location, start date, and end date are required.' });
     }
-    return res.json(results);
-})
 
-    })
+    const query = `
+        SELECT appointment.appointment_type, 
+               SUM(billing_cost_table.cost) AS totalProfit, 
+               COUNT(appointment.appointment_type) AS appointmentCount
+        FROM appointment
+        JOIN billing_cost_table ON appointment.appointment_type = billing_cost_table.appointment_type
+        WHERE appointment.officeID = ? 
+        AND appointment.dateTime BETWEEN ? AND ?
+        GROUP BY appointment.appointment_type;
+    `;
 
-//View referrals by employee_ID
-app.get("/view_referrals/:employee_ID", (req, res) => {
-    const doctorId = req.params.employee_ID;
-    const q_referral = "SELECT * FROM referral WHERE receiving_doctor_ID = ?  AND status = ?"
-
-    const values = [
-        doctorId, 'not reviewed'
-    ]
-    console.log('executing query', q_referral)
-
-    db.query(q_referral, [...values], (err, results) => {
+    db.query(query, [location, startDate, endDate], (err, results) => {
         if (err) {
-            console.error("Error fetching referrals", err);
-            return res.status(500).json(err);
+            console.error('Database query error:', err);
+            return res.status(500).json({ error: err.message });
         }
-        return res.json(results);
-    })
-})
-
-//invoice queries
-// Get specific info for a patient
-app.post("/SearchPatient", (req, res) => {
-    const { patientID, option, choice} = req.body;
-
-    console.log(option);
-    console.log(patientID);
-    console.log(choice);
-
-
-   const q1 = "SELECT medical_ID, patient.billingID, first_name, last_name, address_line_1, address_line_2, city, state, zip, appointment_ID, dateTime, doctor, cost, isPaid , nurse, billing_cost_table.appointment_type, officeID FROM appointment, billing_cost_table, patient WHERE billing_cost_table.appointment_type = appointment.appointment_type AND patient.medical_ID = appointment.patientmedicalID AND appointment.patientmedicalID = ? AND appointment.isPaid = 0;";
-    const q2 = "SELECT medical_ID, first_name, last_name, address_line_1, address_line_2, city, state, zip, invoice.appointment_ID, dateTime, doctor, cost, isPaid , nurse, billing_cost_table.appointment_type, officeID, invoice.created FROM appointment, billing_cost_table, patient, invoice WHERE billing_cost_table.appointment_type = appointment.appointment_type AND patient.medical_ID = appointment.patientmedicalID AND appointment.appointment_ID = invoice.appointment_ID AND appointment.patientmedicalID = ? AND appointment.isPaid = 1;";
-    const q3 = "SELECT medical_ID FROM patient WHERE medical_ID = ?;";
-
-    if(!option){
-        if(!choice){
-            console.log("q1");
-            db.query(q1, [patientID], (err, data) => {
-                if (err) return res.status(500).json(err);
-                return res.json(data);
-            });
-        }else{
-            console.log("q2");
-            db.query(q2, [patientID], (err, data) => {
-                if (err) return res.status(500).json(err);
-                return res.json(data);
-            });
-        }
-        
-    }else{
-        db.query(q3, [patientID], (err, data) => {
-            if (err) return res.status(500).json(err);
-            return res.json(data);
-        });
-    }
-    return;
-});
-
-// Get an office location for invoice purposes
-app.post("/Created_invoice", (req, res) => {
-    const {offID} = req.body;
-    console.log(offID);
-
-    const q = "SELECT * FROM office WHERE location_ID = ?;";
-
-    db.query(q, [offID], (err, data) => {
-        if (err) return res.status(500).json(err);
-        return res.json(data);
-    });
-
-});
-
-
-// Get Appointments that have not been paid in 2 weeks
-app.post("/Past_Due_Patients", (req, res) => {
-
-    const q = "SELECT  DISTINCT patient.medical_ID, patient.first_name, patient.last_name, patient.personal_email, home_phone, work_phone, cell_phone FROM appointment, patient WHERE (appointment.dateTime < DATE_SUB(CURDATE(), INTERVAL 14 DAY)) AND appointment.isPaid = 0 AND patient.medical_ID = appointment.patientmedicalID;";
-
-    db.query(q, (err, data) => {
-        if (err) return res.status(500).json(err);
-        return res.json(data);
-    });
-
-});
-
-// Switch appointment to paid
-app.put("/See_Patient_Balance", (req, res) => {
-    const  patientID  = req.params.id;
-
-    const values =[
-        req.body.ID
-    ]
-
-    console.log(values);
-    const q = "UPDATE appointment SET isPaid = 1 WHERE appointment_ID = ?;";
-    db.query(q, [values, patientID], (err, data) => {
-        if (err) return res.status(500).json(err);
-        return res.json(data);
+        res.json(results);  // Return both totalProfit and appointmentCount
     });
 });
 
-// Insert invoice
-app.post("/See_Patient_Balance", (req, res) => {
-    const  q  = req.body.q;
-
-    const values =[
-        req.body.q
-    ]
-
-
-    console.log(q);
-    const temp = "INSERT INTO invoices (appointment_ID) VALUES (?);";
-    db.query(q, (err, data) => {
-        if (err) return res.status(500).json(err);
-        return res.json(data);
+// get patient info by medical ID, including medical history and family history
+app.get('/patient/:id', (req, res) => {
+    const medicalId = req.params.id;
+    const query = `
+        SELECT p.*, 
+               mr.height, 
+               mr.weight, 
+               mr.sex, 
+               mr.allergies AS medical_allergies, 
+               mh.conditions AS medical_conditions, 
+               mh.treatment, 
+               mh.medication, 
+               mh.diagnosis_date, 
+               fh.relation, 
+               fh.conditions AS family_conditions 
+        FROM patient p
+        LEFT JOIN medical_record mr ON p.medical_ID = mr.medical_ID
+        LEFT JOIN medical_history mh ON p.medical_ID = mh.medical_ID
+        LEFT JOIN family_history fh ON p.medical_ID = fh.medical_ID
+        WHERE p.medical_ID = ?
+    `;
+    
+    db.query(query, [medicalId], (err, results) => {
+        if (err) return res.status(500).send(err);
+        res.json(results);
     });
 });
-//end of invoice queries
-
-
 app.get('/api/patient/:id', (req, res) => {
     const medicalId = req.params.id;
     console.log(medicalId)
   
     // Query to get the most recent upcoming appointment
     const upcomingAppointmentQuery = `
-      SELECT a.dateTime, a.reason, a.doctor, o.name, o.address
+      SELECT a.appointment_ID,a.dateTime, a.reason, a.doctor, o.name, o.address
       FROM appointment as a
       LEFT JOIN office as o ON a.officeId = o.location_ID
-      WHERE a.patientmedicalID = ? AND a.dateTime > NOW()
+      WHERE a.patientmedicalID = ? AND a.dateTime > NOW() and isCanceled = 0
       ORDER BY a.dateTime ASC
       LIMIT 1;
     `;
@@ -852,6 +761,57 @@ app.get('/patient/:id/my_account/personal_information', (req, res) => {
     });
  });
 
+ app.put('/patient/:id/my_account/personal_information',(req,res)=>{
+    const medicalId = req.params.id;
+    // console.log('req.body',req.body);
+    const {
+        age,
+        birthdate,
+        address ,
+        contact,
+    } = req.body;
+    const {line_1, line_2, city, state, zip} = address
+    const  {personal_email, home_phone, work_phone, cell_phone} = contact
+    
+    const updatePersonInformationQuery = `
+       UPDATE patient
+       SET  age = ?, birthdate = ?,
+           address_line_1 = ?, address_line_2 = ?, city = ?, state = ?, zip = ?,
+           personal_email = ?, home_phone = ?, work_phone = ?, cell_phone = ?,last_edited = NOW()
+       WHERE medical_ID = ?;
+    `;
+    db.query(updatePersonInformationQuery, [
+       
+        age,
+        birthdate,
+        line_1,
+        line_2,
+        city,
+        state,
+        zip,
+        personal_email,
+        home_phone,
+        work_phone,
+        cell_phone,
+       
+        medicalId
+    ], (err, result) => {
+        if (err) {
+            console.log('database error', err)
+            return res.status(500).json({ error: 'Failed to update personal information', details: err });
+        }
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'No patient found with the given medical ID' });
+        }
+
+        res.json({ message: 'Personal information updated successfully.' });
+    });
+
+
+
+ })
+
 
  app.get('/patient/appointment/availability', (req, res) => {
     const { doctorID, officeID } = req.query;
@@ -867,7 +827,7 @@ app.get('/patient/:id/my_account/personal_information', (req, res) => {
         FROM 
             appointment
         WHERE 
-            doctorID = ?
+            doctorID = ? and isCanceled  = 0
         GROUP BY 
             DATE(dateTime)
         HAVING 
@@ -933,7 +893,7 @@ app.get('/patient/:id/my_account/personal_information', (req, res) => {
         return res.status(400).json({ error: "Please provide  doctorID , date and facility" });
     }
     console.log(typeof doctorID,typeof date)
-    // SQL query to retrieve time slots
+    // SQL query to retrieve all unavailable  time slots 
     const query = `
     SELECT 
     DATE(dateTime) AS appointment_date,
@@ -942,7 +902,7 @@ app.get('/patient/:id/my_account/personal_information', (req, res) => {
     FROM 
     appointment
     WHERE 
-    doctorID =  ? and date(datetime) = ? and officeID = ?
+    doctorID =  ? and date(datetime) = ? and officeID = ?  and isCanceled = 0
     ORDER BY
     appointment_hour 
     `;
@@ -965,10 +925,10 @@ app.get('/patient/:id/appointments/upcoming_appointments', (req, res) => {
     console.log('asdfasdfasdfasdfasdfasdf')
     // Query to retrieve all upcoming appointments
     const upcomingAppointmentQuery = `
-        SELECT a.dateTime, a.reason, a.doctor, o.name, o.address
+        SELECT a.appointment_ID, a.dateTime, a.reason, a.doctor, o.name, o.address
         FROM appointment as a 
         LEFT JOIN office as o ON a.officeId = o.location_ID
-        WHERE a.patientmedicalID = ? AND a.dateTime > NOW()
+        WHERE a.patientmedicalID = ? AND a.dateTime > NOW() AND isCanceled = 0
         ORDER BY a.dateTime;
     `;
 
@@ -990,13 +950,154 @@ app.get('/patient/:id/appointments/upcoming_appointments', (req, res) => {
         });
     });
 });
+// app.put('/patient/:id/appointments/:appointmentId/attempt-cancel', (req, res) => {
+//     const { appointmentId } = req.params;
+
+//     // Attempt to cancel the appointment by setting isCanceled to 1
+//     const attemptCancelQuery = `UPDATE appointment SET isCanceled = 1 WHERE appointment_ID = ?`;
+
+//     db.query(attemptCancelQuery, [appointmentId], (err, results) => {
+//         if (err) {
+//            /// Log the full error for debugging
+//             console.log("Error SQL State:", err.sqlState);
+//             console.log("Error Number:", err.errno);
+//             // Check if the error is due to the custom trigger error with SQLSTATE 45000 and errno 1644
+//             if (err.sqlState === '45000' && err.errno === 1644) {
+//                 return res.status(400).json({
+//                     message: 'Appointment is within 24 hours. A cancellation fee will apply if you proceed.',
+//                     cancellationFee: 50.00,
+//                     canProceed: true
+//                 });
+//             } else {
+//                 return res.status(500).json({ message: 'Failed to attempt cancellation.' });
+//             }
+//         }
+
+//         if (results.affectedRows === 0) {
+//             return res.status(404).json({ message: 'Appointment not found or already canceled.' });
+//         }
+
+//         // If cancellation is allowed without any trigger errors
+//         res.json({
+//             message: 'Appointment canceled successfully without a fee.'
+//         });
+//     });
+// });
+app.put('/patient/:id/appointments/:appointmentId/attempt-cancel', (req, res) => {
+    const { appointmentId } = req.params;
+
+    // Attempt to cancel the appointment by setting isCanceled to 1
+    const attemptCancelQuery = `UPDATE appointment SET isCanceled = 1 WHERE appointment_ID = ?`;
+
+    db.query(attemptCancelQuery, [appointmentId], (err, results) => {
+        if (err) {
+            console.error('Error attempting to cancel appointment:', err);
+            return res.status(500).json({ message: 'Failed to attempt cancellation.' });
+        }
+
+        if (results.affectedRows === 0) {
+            return res.status(404).json({ message: 'Appointment not found or already canceled.' });
+        }
+
+        // Step 2: Check the session variable for the fee warning
+        const checkWarningQuery = `SELECT @fee_warning AS fee_warning`;
+        db.query(checkWarningQuery, (err, results) => {
+            if (err) {
+                console.error('Error checking fee warning:', err);
+                return res.status(500).json({ message: 'Failed to check fee warning.' });
+            }
+
+            const feeWarning = results[0].fee_warning;
+
+            if (feeWarning === 1) {
+                // Return a 400 response with the penalty confirmation required
+                return res.status(400).json({
+                    message: 'Appointment is within 24 hours. A cancellation fee will apply if you proceed.',
+                    cancellationFee: 50.00,
+                    canProceed: true
+                });
+            } else {
+                // Return a 200 response confirming cancellation without a fee
+                const updateInvoiceQuery = `
+            UPDATE invoice 
+            SET amountCharged = 0.00, 
+            amountDue = 0.00, 
+            services = 'Canceled' 
+            WHERE appointment_ID = ?`;
+            db.query(updateInvoiceQuery, [appointmentId], (err, results) => {
+                if (err) {
+                    console.error('Error updating invoice with penalty fee:', err);
+                    return res.status(500).send({ message: 'Failed to apply cancellation fee.' });
+                }
+        
+                return res.json({
+                    message: 'Appointment canceled successfully without a fee.'
+                });
+            });
+                
+                
+            }
+        });
+    });
+});
+app.put('/patient/:id/appointments/:appointmentId/finalize-cancel', (req, res) => {
+    const { appointmentId } = req.params;
+
+    // Apply the penalty fee to the invoice associated with this appointment
+    const updateInvoiceQuery = `
+        UPDATE invoice 
+        SET amountCharged = 50.00, 
+            amountDue = 50.00, 
+            services = 'Canceled' 
+        WHERE appointment_ID = ?`;
+
+    db.query(updateInvoiceQuery, [appointmentId], (err, results) => {
+        if (err) {
+            console.error('Error updating invoice with penalty fee:', err);
+            return res.status(500).send({ message: 'Failed to apply cancellation fee.' });
+        }
+
+        res.send({ message: 'Appointment canceled successfully, and cancellation fee applied to invoice.' });
+    });
+});
+app.put('/patient/:id/appointments/:appointmentId/revert-cancel', (req, res) => {
+    const { appointmentId } = req.params;
+
+    // Revert the cancellation by setting isCanceled back to 0
+    console.log(appointmentId)
+    const revertCancelQuery = `UPDATE appointment SET isCanceled = 0 WHERE appointment_ID = ?`;
+
+    db.query(revertCancelQuery, [appointmentId], (err, results) => {
+        if (err) {
+            console.error('Error reverting cancellation:', err);
+            return res.status(500).send({ message: 'Failed to revert cancellation.' });
+        }
+
+        res.send({ message: 'Cancellation reverted, appointment remains active.' });
+    });
+});
+function calculateAmountDue(appointmentType) {
+    switch (appointmentType) {
+        case 'Cardiologist': return 250;
+        case 'Gastroenterologist': return 175;
+        case 'General Practitioner': return 100;
+        case 'Immunologist': return 160;
+        case 'Obstetrician': return 180;
+        case 'Oncologist': return 200;
+        case 'Pediatrician': return 120;
+        case 'Radiologist': return 150;
+        default: return 0; // Return 0 or handle cases for undefined appointment types
+    }
+}
+
 
 app.post('/patient/:id/appointments/create_appointment', (req, res) => {
     const medicalId = req.params.id;
     const {
-        doctorId, nurseId, nurseName, facility, 
-        appointmentType, reason, date, timeSlot
+        patientName, doctorId, nurseId, nurseName, facility, 
+        appointmentType, reason, date, timeSlot, patientBillingId
     } = req.body;
+    console.log('asdfasdf',date,timeSlot, patientName)
     
     const randomNumber = Math.floor(1000000 + Math.random() * 9000000); // 7-digit number
     const appointment_id = `A${randomNumber}`;
@@ -1036,14 +1137,15 @@ app.post('/patient/:id/appointments/create_appointment', (req, res) => {
         // Prepare the SQL query to insert the new appointment
         const query = `
             INSERT INTO appointment 
-            (appointment_ID, patientmedicalID, doctor, nurse, doctorID,
-             appointment_type, nurseID, officeID, dateTime, reason, created_by) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            (appointment_ID, patientmedicalID, patientName,doctor, nurse, doctorID,
+             appointment_type, nurseID, officeID, dateTime, reason,created_at, created_by) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,NOW(),?);
         `;
         console.log('asdfasdf',formattedDateTime)
         const values = [
             appointment_id,     // appointment_ID
-            medicalId,          // patientmedicalID
+            medicalId,
+            patientName,          // patientmedicalID
             doctorName,         // doctor (name of doctor)
             nurseName,          // nurse
             doctorId,           // doctorID
@@ -1066,10 +1168,48 @@ app.post('/patient/:id/appointments/create_appointment', (req, res) => {
                 console.error('Error creating appointment:', err);
                 return res.status(500).json({ error: 'Failed to create appointment.' });
             }
+
+
+
+            const invoiceQuery = `
+            INSERT INTO invoice 
+            (appointment_ID, appointmentDateTime, patientBillingID, InvoiceID,
+            patient_name, patient_insurance, services, amountCharged, amountDue, created) 
+            VALUES (?, ?, ?, ?,?, 'Insurnace Co.', ?,?,?, NOW());
+        `;
+
+        const invoiceId = `I${Math.floor(1000000 + Math.random() * 9000000)}`; // Random 7-digit invoice ID
+        const amountCharged = calculateAmountDue(appointmentType); // Custom function to calculate the amount due based on appointment type
+
+        const invoiceValues = [
+            appointment_id,
+            formattedDateTime,
+            patientBillingId,  
+            invoiceId,  
+            patientName,
+            appointmentType,
+            amountCharged,
+            amountCharged,    
+        ];
+
+        db.query(invoiceQuery, invoiceValues, (err, invoiceResult) => {
+            if (err) {
+                console.error('Error creating invoice:', err);
+                return res.status(500).json({ error: 'Failed to create invoice.' });
+            }
+
+
+
+
+
+
             res.status(201).json({ message: 'Appointment created successfully.' });
         });
+
     });
+  });
 });
+
 app.get('/patient/:id/appointments/doctors', (req, res) => {
     const medicalId = req.params.id;
     console.log('asdfadfad', medicalId)
@@ -1179,7 +1319,203 @@ app.get('/patient/:id/medical_records/test_history',(req,res)=>{
         res.json({ tests: testHistoryData });
     });
 })
+app.post('/patient/:id/my_account/password_change', (req, res) => {
+    const medicalId = req.params.id;
+    const newPassword = req.body.password;
+    
+    console.log(medicalId, newPassword)
+    // Validate the input
+    if (!newPassword || newPassword.trim() === '') {
+        return res.status(400).send({ message: 'Password is required' });
+    }
 
+    // Update the password in the database
+    const query = `UPDATE patient_password SET password = ?, last_edited = NOW() WHERE medical_ID = ?;`;
+    console.log('password')
+    db.query(query, [newPassword, medicalId], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).send({ message: 'Database error' });
+        }
+
+        if (results.affectedRows === 0) {
+            return res.status(404).send({ message: 'Patient not found' });
+        }
+
+        res.send({ message: 'Password updated successfully' });
+    });
+});
+
+app.get('/patient/:id/pay_bill', (req, res) => {
+    const medicalId = req.params.id;
+    console.log('asdfasdf',medicalId)
+    const query = `
+        SELECT 
+            i.InvoiceID, 
+            i.appointmentDateTime, 
+            i.patient_insurance, 
+            i.amountDue,
+            i.created,
+            a.doctor, 
+            a.officeID,
+            (CASE 
+                WHEN DATE_ADD(i.created, INTERVAL 30 DAY) < NOW() AND i.amountDue > 0 THEN TRUE 
+                ELSE FALSE 
+            END) AS is_overdue
+        FROM invoice i
+        LEFT JOIN appointment a ON i.appointment_ID = a.appointment_ID
+        WHERE a.patientmedicalID = ? 
+        AND i.amountDue > 0;
+    `;
+
+    db.query(query, [medicalId], (err, rows) => {
+        if (err) {
+            console.error('Error fetching invoices:', err);
+            return res.status(500).send({ message: 'Database error' });
+        }
+        console.log(rows)
+        res.json(rows);
+    });
+});
+
+app.post('/patient/pay_invoice', (req, res) => {
+    const { invoiceId, amountPayed, amountDue } = req.body;
+
+    // Validate input
+    if (!invoiceId || amountPayed === undefined || amountDue === undefined || isNaN(amountPayed)) {
+        return res.status(400).send({ message: 'Invalid input. Please provide valid invoice ID, payment amount, and amount due.' });
+    }
+
+    // Convert amountPayed from string to number
+    
+
+    
+    
+
+    // Ensure the payment doesn't exceed the current amount due
+    if (amountPayed > amountDue) {
+        return res.status(400).send({ message: 'Payment exceeds the amount due.' });
+    }
+
+    const newAmountDue = amountDue - amountPayed;
+    console.log('newamoutndue', newAmountDue)
+    // Query to update the amountDue
+    const updateInvoiceQuery = `UPDATE invoice SET amountDue = ? WHERE InvoiceID = ?`;
+
+    db.query(updateInvoiceQuery, [newAmountDue, invoiceId], (err, result) => {
+        if (err) {
+            console.error('Error updating invoice:', err);
+            return res.status(500).send({ message: 'Database error' });
+        }
+
+        if (result.affectedRows === 0) {
+            return res.status(404).send({ message: 'Invoice not found' });
+        }
+
+        res.send({ message: 'Payment applied successfully', newAmountDue });
+    });
+});
+
+
+//invoice queries
+
+// Get specific info for a patient
+app.post("/SearchPatient", (req, res) => {
+    const { patientID, option, choice} = req.body;
+
+    console.log(option);
+    console.log(patientID);
+    console.log(choice);
+
+
+    const q1 = "SELECT invoice.appointment_ID, invoice.appointmentDateTime, invoice.amountCharged, invoice.amountDue, appointment.officeID, appointment.patientName, appointment.doctor, appointment.nurse, appointment.appointment_type, invoice.patientmedicalID , invoice.created, patient.address_line_1, patient.address_line_2, patient.city, patient.state, patient.zip FROM invoice, appointment, patient WHERE invoice.appointment_ID = appointment.appointment_ID AND invoice.patientMedicalID = appointment.patientMedicalID AND invoice.patientmedicalID = patient.medical_ID AND invoice.amountDue > 0.00 AND appointment.patientmedicalID = ?;";
+    const q2 = "SELECT invoice.appointment_ID, invoice.appointmentDateTime, invoice.amountCharged, invoice.amountDue, appointment.officeID, appointment.patientName, appointment.doctor, appointment.nurse, appointment.appointment_type, invoice.patientmedicalID , invoice.created, patient.address_line_1, patient.address_line_2, patient.city, patient.state, patient.zip FROM invoice, appointment, patient WHERE invoice.appointment_ID = appointment.appointment_ID AND invoice.patientMedicalID = appointment.patientMedicalID AND invoice.patientmedicalID = patient.medical_ID AND invoice.amountDue = 0.00 AND appointment.patientmedicalID = ?;";
+    const q3 = "SELECT medical_ID FROM patient WHERE medical_ID = ?;";
+
+    if(!option){
+        if(!choice){
+            console.log("q1");
+            db.query(q1, [patientID], (err, data) => {
+                if (err) return res.status(500).json(err);
+                return res.json(data);
+            });
+        }else{
+            console.log("q2");
+            db.query(q2, [patientID], (err, data) => {
+                if (err) return res.status(500).json(err);
+                return res.json(data);
+            });
+        }
+        
+    }else{
+        db.query(q3, [patientID], (err, data) => {
+            if (err) return res.status(500).json(err);
+            return res.json(data);
+        });
+    }
+    return;
+});
+
+// Get an office location for invoice purposes
+app.post("/Created_invoice", (req, res) => {
+    const {offID} = req.body;
+    console.log(offID);
+
+    const q = "SELECT * FROM office WHERE location_ID = ?;";
+
+    db.query(q, [offID], (err, data) => {
+        if (err) return res.status(500).json(err);
+        return res.json(data);
+    });
+
+});
+
+
+//get patient info for all patients with a certain name
+app.post("/Search_Patient_ID", (req, res) => {
+    const {query} = req.body;
+    console.log(query);
+
+    db.query(query, (err, data) => {
+        if (err) return res.status(500).json(err);
+        return res.json(data);
+    });
+
+});
+
+
+
+
+// Get Appointments that have not been paid in 2 weeks
+app.get("/Past_Due_Patients", (req, res) => {
+
+    const q = "SELECT  DISTINCT patient.medical_ID, patient.first_name, patient.last_name, patient.personal_email, home_phone, work_phone, cell_phone FROM invoice, patient WHERE (invoice.appointmentDateTime < DATE_SUB(CURDATE(), INTERVAL 14 DAY)) AND invoice.amountDue > 0 AND patient.medical_ID = invoice.patientmedicalID;";
+
+    db.query(q, (err, data) => {
+        if (err) return res.status(500).json(err);
+        return res.json(data);
+    });
+
+});
+
+// Switch appointment to paid
+app.post("/See_Patient_Balance", (req, res) => {
+    const  patientID  = req.params.id;
+
+    const values =[
+        req.body.ID
+    ]
+
+    console.log(values);
+    const q = "UPDATE invoice SET amountDue = 0.00 WHERE appointment_ID = ?";
+    db.query(q, [values, patientID], (err, data) => {
+        if (err) return res.status(500).json(err);
+        return res.json(data);
+    });
+});
+
+
+//end of invoice queries
 app.listen(process.env.PORT || 3000, () => {
     console.log('Server running on port 3000! (Connected to backend!)');
   });
