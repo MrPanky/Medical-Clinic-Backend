@@ -1514,7 +1514,6 @@ app.post("/See_Patient_Balance", (req, res) => {
     });
 });
 
-
 //Doctor view
 app.get("/doctor_view/:employee_ID", (req, res) => {
     const doctorId = req.params.employee_ID;
@@ -2285,9 +2284,6 @@ app.get('/patient/:id/medical_records/test_history', (req, res) => {
         res.json({ tests: testHistoryData });
     });
 })
-
-
-
 
 //end of invoice queries
 app.listen(process.env.PORT || 3000, () => {
