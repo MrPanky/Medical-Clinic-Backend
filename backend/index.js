@@ -2284,8 +2284,219 @@ app.get('/patient/:id/medical_records/test_history', (req, res) => {
         res.json({ tests: testHistoryData });
     });
 })
+// Create a new patient, set their password, and link them to a doctor
+app.post("/patients", (req, res) => {
+    console.log(req.body);
 
-//end of invoice queries
+    // Generate a random medical ID starting with 'M'
+    const medicalID = "M" + Math.floor(Math.random() * 100000000).toString().padStart(8, '0');
+    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' '); // Current date for created and last_edited
+
+    // Step 1: Insert into the `patient` table
+    const q1 = "INSERT INTO patient (medical_ID, first_name, last_name, birthdate, address_line_1, address_line_2, city, state, zip, personal_email, home_phone, emergency_contact_info, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    const patientValues = [
+        medicalID, 
+        req.body.first_name,
+        req.body.last_name,
+        req.body.birthdate,
+        req.body.address_line_1,
+        req.body.address_line_2 || '', // Default to empty string if not provided
+        req.body.city,
+        req.body.state,
+        req.body.zip,
+        req.body.personal_email,
+        req.body.home_phone,
+        req.body.emergency_contact_info,
+        currentDate // created timestamp
+    ];
+
+    // Step 2: Insert into the `patient_password` table (default password: 'Patient')
+    const q2 = "INSERT INTO patient_password (medical_ID, password, created) VALUES (?, ?, ?)";
+    const passwordValues = [
+        medicalID, 
+        'Patient',  // Default password
+        currentDate, // created timestamp
+        currentDate,
+    ];
+
+    // Step 3: Insert into `doctors_patient` table to associate the patient with a doctor
+    const q3 = "INSERT INTO doctors_patient (doctor_ID, patient_ID) VALUES (?, ?)";
+    const doctorPatientValues = [
+       "E12345678",  // The doctor ID passed from the frontend
+        medicalID  // The newly generated medical ID for the patient
+    ];
+
+    // Start a transaction to ensure all queries are executed atomically
+    db.beginTransaction((err) => {
+        if (err) {
+            console.error("Error starting transaction:", err); // Log the error
+            return res.status(500).json({ error: "Error starting transaction", details: err });
+        }
+
+        // Execute query to insert patient
+        db.query(q1, patientValues, (err) => {
+            if (err) {
+                console.error("Error inserting into patient table:", err); // Log the error
+                return db.rollback(() => {
+                    res.status(500).json({ error: "Error inserting into patient table", details: err });
+                });
+            }
+
+            // Insert the patient's password
+            db.query(q2, passwordValues, (err) => {
+                if (err) {
+                    console.error("Error inserting into patient_password table:", err); // Log the error
+                    return db.rollback(() => {
+                        res.status(500).json({ error: "Error inserting into patient_password table", details: err });
+                    });
+                }
+
+                // Link the patient to the doctor
+                db.query(q3, doctorPatientValues, (err) => {
+                    if (err) {
+                        console.error("Error inserting into doctors_patient table:", err); // Log the error
+                        return db.rollback(() => {
+                            res.status(500).json({ error: "Error inserting into doctors_patient table", details: err });
+                        });
+                    }
+
+                    // Commit transaction if all queries succeed
+                    db.commit((err) => {
+                        if (err) {
+                            console.error("Error committing transaction:", err); // Log the error
+                            return db.rollback(() => {
+                                res.status(500).json({ error: "Error committing transaction", details: err });
+                            });
+                        }
+
+                        // Respond to client after success
+                        return res.json("Patient has been created, linked to a doctor, and a default password has been set!");
+                    });
+                });
+            });
+        });
+    });
+});
+
+// Define the route to fetch all patients
+app.get('/patients', (req, res) => {
+    const query = 'SELECT * FROM patient'; // Adjust to match your actual table name
+  
+    db.query(query, (err, results) => {
+      if (err) {
+        console.error('Error fetching patients:', err);
+        return res.status(500).json({ error: 'Failed to fetch patients' });
+      }
+      res.json(results); // Send the patient data as JSON
+    });
+  });
+
+  // Delete Patient Endpoint
+app.delete("/patients/:medicalId", (req, res) => {
+    const medicalId = req.params.medicalId;
+  
+    // Start a transaction to ensure all queries are executed atomically
+    db.beginTransaction((err) => {
+      if (err) {
+        console.error("Error starting transaction:", err);
+        return res.status(500).json({ error: "Error starting transaction", details: err });
+      }
+  
+      // Step 1: Delete from `doctors_patient` table (unassociate doctor-patient relation)
+      const q1 = "DELETE FROM doctors_patient WHERE patient_ID = ?";
+      db.query(q1, [medicalId], (err) => {
+        if (err) {
+          console.error("Error deleting from doctors_patient table:", err);
+          return db.rollback(() => {
+            res.status(500).json({ error: "Error deleting from doctors_patient table", details: err });
+          });
+        }
+  
+        // Step 2: Delete from `patient_password` table
+        const q2 = "DELETE FROM patient_password WHERE medical_ID = ?";
+        db.query(q2, [medicalId], (err) => {
+          if (err) {
+            console.error("Error deleting from patient_password table:", err);
+            return db.rollback(() => {
+              res.status(500).json({ error: "Error deleting from patient_password table", details: err });
+            });
+          }
+  
+          // Step 3: Delete from `patient` table
+          const q3 = "DELETE FROM patient WHERE medical_ID = ?";
+          db.query(q3, [medicalId], (err) => {
+            if (err) {
+              console.error("Error deleting from patient table:", err);
+              return db.rollback(() => {
+                res.status(500).json({ error: "Error deleting from patient table", details: err });
+              });
+            }
+  
+            // Commit transaction if all queries succeed
+            db.commit((err) => {
+              if (err) {
+                console.error("Error committing transaction:", err);
+                return db.rollback(() => {
+                  res.status(500).json({ error: "Error committing transaction", details: err });
+                });
+              }
+  
+              // Respond to client after success
+              return res.json({ message: "Patient deleted successfully" });
+            });
+          });
+        });
+      });
+    });
+  });
+  
+// Update Patient Password Route 
+app.put('/patient/password/:medical_ID', (req, res) => {
+    const { medical_ID } = req.params;
+    const { newPassword } = req.body;
+  
+    if (!newPassword) {
+      return res.status(400).json({ message: 'Password is required' });
+    }
+  
+    const query = 'UPDATE patient_password SET password = ? WHERE medical_ID = ?';
+    db.query(query, [newPassword, medical_ID], (err, result) => {
+      if (err) {
+        return res.status(500).json({ message: 'Error updating password', error: err });
+      }
+  
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: 'Patient not found' });
+      }
+  
+      res.status(200).json({ message: 'Password updated successfully' });
+    });
+  });
+  
+  // Update Employee Password Route 
+  app.put('/employee/password/:employee_ID', (req, res) => {
+    const { employee_ID } = req.params;
+    const { newPassword } = req.body;
+  
+    if (!newPassword) {
+      return res.status(400).json({ message: 'Password is required' });
+    }
+  
+    const query = 'UPDATE employee_password SET password = ? WHERE employee_ID = ?';
+    db.query(query, [newPassword, employee_ID], (err, result) => {
+      if (err) {
+        return res.status(500).json({ message: 'Error updating password', error: err });
+      }
+  
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: 'Employee not found' });
+      }
+  
+      res.status(200).json({ message: 'Password updated successfully' });
+    });
+  });
+  
+
 app.listen(process.env.PORT || 3000, () => {
     console.log('Server running on port 3000! (Connected to backend!)');
   });
