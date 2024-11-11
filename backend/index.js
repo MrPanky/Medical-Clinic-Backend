@@ -1536,7 +1536,7 @@ app.get("/doctor_view/:employee_ID", (req, res) => {
     });
 });
 
-app.get("/appointments/:employee_ID", (req, res) => {
+app.get("/doc_appointments/:employee_ID", (req, res) => {
     const doctorId = req.params.employee_ID;
 
     const q_doc_apps =
