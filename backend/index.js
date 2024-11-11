@@ -1733,6 +1733,241 @@ app.put("/reject_referral/:referral_ID", (req, res) => {
 })
 
 /*
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*/
+//Doctor view
+app.get("/doctor_view/:employee_ID", (req, res) => {
+    const doctorId = req.params.employee_ID;
+
+    const q_doctors =
+        //"SELECT * FROM employee WHERE employee_ID = ?";
+        //'SELECT employee_ID FROM doctors WHERE employee_ID = ?';
+        `
+    SELECT d.employee_ID, d.first_name, d.last_name, d.specialty, d.availabilityMon, d.availabilityTues, d.availabilityWed, d.availabilityThurs, d.availabilityFri
+    FROM doctors d 
+    WHERE employee_ID = ?`;
+    console.log('executing query:', q_doctors, [doctorId]);
+    db.query(q_doctors, [doctorId], (err, doctors) => {
+        console.log(doctorId);
+        if (typeof doctorId === 'string') {
+            console.log('doctorId is a string');
+        }
+        if (err) return res.status(500).json(err);
+        if (doctors.length === 0) return res.status(404).json("No doctors found.");
+
+        return res.json(doctors); // Send back the doctors data
+    });
+});
+
+app.get("/appointments/:employee_ID", (req, res) => {
+    const doctorId = req.params.employee_ID;
+
+    const q_doc_apps =
+        `SELECT * 
+    FROM appointment 
+    WHERE doctorID = ?`;
+
+    console.log('executing query:', q_doc_apps, [doctorId]);
+    db.query(q_doc_apps, [doctorId], (err, appointment) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json(err);
+        }
+        return res.json(appointment);
+    });
+});
+
+app.get("/doc_availability/:employee_ID", (req, res) => {
+
+    const employeeId = req.params.employee_ID;
+
+    const q_doctor_availability =
+        `
+    SELECT availabilityMon, availabilityTues, availabilityWed, availabilityThurs, availabilityFri
+    FROM doctors
+    WHERE employee_ID = ?;
+    `
+    console.log('executing query:', q_doctor_availability, [employeeId]);
+    db.query(q_doctor_availability, [employeeId], (err, availability) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json(err);
+        }
+        return res.json(availability);
+    });
+});
+
+app.put("/update_doc_availability/:employee_ID", (req, res) => {
+    const employeeId = req.params.employee_ID;
+    //const monAvailability = req.body.monAvailability;
+    //console.log("value in req.body.availabilityMon = ", req.body.monAvailability)
+    const q_update_availability =
+        `
+        UPDATE doctors
+        SET availabilityMon = ?, availabilityTues = ?, availabilityWed = ?, availabilityThurs = ?, availabilityFri = ?
+        WHERE employee_ID = ?;
+        `
+    const availabilityByDay = [
+        req.body.monAvailability,
+        req.body.tuesAvailability,
+        req.body.wedAvailability,
+        req.body.thursAvailability,
+        req.body.friAvailability,
+    ]
+    console.log('executing query:', q_update_availability, [employeeId]);
+    db.query(q_update_availability, [...availabilityByDay, employeeId], (err, data) => {
+        if (err) {
+            return res.json(err);
+        }
+        return res.json("availability updated");
+    });
+});
+
+app.post("/create_referral/:employee_ID", (req, res) => {
+    //const employeeId = req.params.employee_ID;
+    //console.log("referral contains: ", req);
+    console.log(req.body.status);
+    const now = new Date();
+    const isoString = now.toISOString();
+    const mysqlDateTime = isoString.slice(0, 19).replace('T', ' ');
+    console.log("the mysql datetime is...", mysqlDateTime);
+    console.log("the referral_ID is...", req.body.referral_ID)
+    console.log("the originating doctorID is ...", req.body.originating_doctor_ID)
+    console.log("the originating doctor contact info is... ", req.body.originating_doctor_contact_info)
+    const q_create_referral =
+        `
+    INSERT INTO referral (referral_ID, date_created, creatorID, created, patient_contact_info, originating_doctor_ID, originating_doctor_contact_info, receiving_doctor_ID, receiving_doctor_contact_info, patient_ID, reason, status)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?);
+    `
+    const values = [
+        req.body.referral_ID,
+        mysqlDateTime,
+        req.body.creatorID, req.body.created,
+        req.body.patient_contact_info, req.body.originating_doctor_ID,
+        req.body.originating_doctor_contact_info, req.body.receiving_doctor_ID,
+        req.body.receiving_doctor_contact_info, req.body.patient_ID,
+        req.body.reason, req.body.status,
+    ]
+    console.log('executing query:', q_create_referral);
+    db.query(q_create_referral, [...values], (err, data) => {
+        if (err) return res.json(err);
+        return res.json("referral created");
+    })
+
+})
+
+//Get Doctor Last name
+app.get("/doctor_Lname/:employee_ID", (req, res) => {
+    const doctorId = req.params.employee_ID;
+
+    const q_doc_name = "SELECT last_name FROM doctors WHERE employee_ID = ?";
+
+    console.log("executing query", q_doc_name);
+    db.query(q_doc_name, [doctorId], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json(err);
+        };
+        return res.json(results);
+    })
+
+})
+
+//View referrals by employee_ID
+app.get("/view_referrals/:employee_ID", (req, res) => {
+    console.log(req.params);
+    const doctorId = req.params.employee_ID;
+    const q_referral = "SELECT * FROM referral WHERE receiving_doctor_ID = ?  AND status = ?"
+
+    const values = [
+        doctorId, 'not reviewed'
+    ]
+    console.log('executing query', q_referral)
+
+    db.query(q_referral, [...values], (err, results) => {
+        if (err) {
+            console.error("Error fetching referrals", err);
+            return res.status(500).json(err);
+        }
+        return res.json(results);
+    })
+})
+
+//View detailed referral information by referral_ID
+app.get("/view_specific_referral/:referral_ID", (req, res) => {
+    console.log(req.params);
+    const referralId = req.params.referral_ID;
+    const q_specific_referral = "SELECT * FROM referral WHERE referral_ID = ?"
+
+    const values = [
+        referralId
+    ]
+    console.log('executing query', q_specific_referral)
+
+    db.query(q_specific_referral, [...values], (err, results) => {
+        if (err) {
+            console.error("Error fetching referral", err);
+            return res.status(500).json(err);
+        }
+        return res.json(results);
+    })
+})
+
+app.put("/accept_referral/:referral_ID", (req, res) => {
+    const referralId = req.params.referral_ID;
+    const q_accept_referral =
+        `
+    UPDATE referral
+    SET status = ?
+    WHERE referral_ID = ?;
+    `
+    const accepted = 'accepted'
+
+    db.query(q_accept_referral, [accepted, referralId], (err, results) => {
+        if (err) {
+            console.error("Error fetching referral", err);
+            return res.status(500).json(err);
+        }
+        return res.json('referral accepted');
+    })
+
+})
+
+app.put("/reject_referral/:referral_ID", (req, res) => {
+    const referralId = req.params.referral_ID;
+    const q_reject_referral =
+        `
+    UPDATE referral
+    SET status = ?
+    WHERE referral_ID = ?;
+    `
+    const rejected = 'rejected'
+
+    db.query(q_reject_referral, [rejected, referralId], (err, results) => {
+        if (err) {
+            console.error("Error fetching referral", err);
+            return res.status(500).json(err);
+        }
+        return res.json('referral rejected');
+    })
+
+})
+
+// app.get("/patient_check/:patientId", (req, res) => {
+//     const patientId = req.params.patientId
+
+//     const q_check_patient_id =
+//     `
+//     SELECT medical_ID
+//     FROM patient
+//     WHERE medical_ID = ?
+//     `
+//     db.query(q_check_patient, [patientId,])
+// })
+
+/*
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -1816,6 +2051,39 @@ app.post("/nurse_create_patient/:employee_ID", (req, res) => {
 
 })
 
+app.post("/nurse_assign_new_patient/:patientID", (req, res) => {
+    //const employeeId = req.params.employee_ID;
+    //console.log("referral contains: ", req);
+    console.log("patient being assigned");
+    const patientId = req.params.patientID;
+    console.log("the req.params are...", req.params)
+    console.log(patientId);
+    // console.log(req.body);
+    // console.log(req.body.medical_ID);
+    // console.log(req.body.last_name);
+    // console.log(req.body.first_name);
+    // console.log(req.body.address);
+    // const now = new Date();
+    // const isoString = now.toISOString();
+    // const mysqlDateTime = isoString.slice(0, 19).replace('T', ' ');
+
+    const q_assign_new_patient =
+        `
+    INSERT INTO doctors_patient (doctor_ID, patient_ID)
+    VALUES (?,?);
+    `
+    const values = [
+        'E12345678',
+        patientId,
+    ]
+    console.log('executing query:', q_assign_new_patient);
+    db.query(q_assign_new_patient, [...values], (err, data) => {
+        if (err) return res.json(err);
+        return res.json("patient assigned");
+    })
+
+})
+
 app.get("/nurse_get_app_history/:patientId", (req, res) => {
 
     console.log("MESSAGE", req.params)
@@ -1839,268 +2107,33 @@ app.get("/nurse_get_app_history/:patientId", (req, res) => {
     });
 });
 
-app.get('/api/patient/:id', (req, res) => {
-    const medicalId = req.params.id;
-    console.log(medicalId)
+app.get("/nurse_get_patient_name/:patientId", (req, res) => {
 
-    // Query to get the most recent upcoming appointment
-    const upcomingAppointmentQuery = `
-      SELECT a.dateTime, a.reason, a.doctor, o.name, o.address
-      FROM appointment as a
-      LEFT JOIN office as o ON a.officeId = o.location_ID
-      WHERE a.patientmedicalID = ? AND a.dateTime > NOW()
-      ORDER BY a.dateTime ASC
-      LIMIT 1;
-    `;
+    const patientId = req.params.patientId
+    console.log("patientId is....:)", patientId)
 
-    // Query to get the most recent 3 test results
-    const recentTestsQuery = `
-      SELECT test_name, test_date, result
-      FROM test_history
-      WHERE medical_ID = ?
-      ORDER BY test_date DESC
-      LIMIT 3;
-    `;
-
-    const top3RecentReferrals = `
-        SELECT r1.status, r1.date_reviewed, r1.reason, 
-    doc_origin.first_name as origin_first_name, doc_origin.last_name as origin_last_name, 
-    doc_receive.first_name as receive_first_name, doc_receive.last_name as receive_last_name
-    FROM (
-    SELECT patient_ID, originating_doctor_ID, receiving_doctor_ID, status, date_reviewed, reason
-    FROM referral 
-    WHERE patient_ID = ?
-    ORDER BY date_reviewed DESC  
-    LIMIT 3  
-    ) AS r1
-    LEFT JOIN doctors AS doc_origin 
-    ON r1.originating_doctor_ID = doc_origin.employee_ID
-    LEFT JOIN doctors AS doc_receive
-    ON r1.receiving_doctor_ID = doc_receive.employee_ID;
-    `
+    const q_patient_name =
+        `SELECT first_name, last_name
+         FROM patient 
+         WHERE medical_ID = ?
+        `;
 
 
-
-
-    db.query(upcomingAppointmentQuery, [medicalId], (err1, appointmentResult) => {
-        if (err1) {
-            return res.status(500).json({ error: 'Failed to fetch upcoming appointment', details: err1 });
-        }
-
-        db.query(recentTestsQuery, [medicalId], (err2, testResults) => {
-            if (err2) {
-                return res.status(500).json({ error: 'Failed to fetch recent test results', details: err2 });
-            }
-
-            db.query(top3RecentReferrals, [medicalId], (err3, referralResults) => {
-                if (err3) {
-                    return res.status(500).json({ error: 'Failed to fetch recent referrals', details: err3 });
-                }
-
-                // Handling upcoming appointment and recent test results
-                const upcomingAppointment = appointmentResult.length > 0 ? appointmentResult[0] : null;
-                const recentTests = testResults.length > 0 ? testResults : null;  // Set to null if no test results
-                const recentReferrals = referralResults.length > 0 ? referralResults : null;  // Set to null if no referrals
-                // Send response
-                res.json({
-                    upcomingAppointment: upcomingAppointment,
-                    recentTests: recentTests,
-                    recentReferrals: recentReferrals
-
-                });
-            });
-
-        });
-    });
-});
-
-app.get('/patient/:id/my_account/personal_information', (req, res) => {
-    const medicalId = req.params.id;
-
-    const personInformationQuery = `
-       SELECT p.first_name, p.last_name, p.age, p.birthdate, p.address_line_1, p.address_line_2,
-              p.city, p.state, p.zip, p.personal_email, p.home_phone, p.work_phone, p.cell_phone
-       FROM patient p 
-       WHERE p.medical_ID = ?;
-    `;
-
-    db.query(personInformationQuery, [medicalId], (err, personalData) => {
+    console.log('executing query:', q_patient_name);
+    db.query(q_patient_name, patientId, (err, patientName) => {
         if (err) {
-            return res.status(500).json({ error: 'Failed to retrieve personal information', details: err });
+            console.error(err);
+            return res.status(500).json(err);
         }
-
-        if (personalData.length === 0) {
-            return res.status(404).json({ error: 'No personal information found for the given medical ID' });
-        }
-
-        // Format the birthdate to just YYYY-MM-DD
-        const formattedBirthdate = new Date(personalData[0].birthdate).toLocaleDateString('en-CA');  // Returns YYYY-MM-DD
-
-        res.json({
-            first_name: personalData[0].first_name,
-            last_name: personalData[0].last_name,
-            age: personalData[0].age,
-            birthdate: formattedBirthdate,  // Send the formatted birthdate
-            address: {
-                line_1: personalData[0].address_line_1,
-                line_2: personalData[0].address_line_2,
-                city: personalData[0].city,
-                state: personalData[0].state,
-                zip: personalData[0].zip
-            },
-            contact: {
-                personal_email: personalData[0].personal_email,
-                home_phone: personalData[0].home_phone,
-                work_phone: personalData[0].work_phone,
-                cell_phone: personalData[0].cell_phone
-            }
-        });
+        return res.json(patientName);
     });
 });
 
-
-app.get('/patient/appointment/availability', (req, res) => {
-    const { doctorID, officeID } = req.query;
-
-    if (!doctorID || !officeID) {
-        return res.status(400).json({ error: "Please provide both doctorID and officeID" });
-    }
-
-    // First query: Get fully booked dates
-    const fullyBookedDatesQuery = `
-        SELECT 
-            DATE(dateTime) AS unavailable_date
-        FROM 
-            appointment
-        WHERE 
-            doctorID = ?
-        GROUP BY 
-            DATE(dateTime)
-        HAVING 
-            COUNT(*) >= 8
-    `;
-
-    // Second query: Get unavailable days based on the doctor's schedule
-    const unavailableDaysQuery = `
-        SELECT 
-            schedule_ID,
-            CASE WHEN mon_avail != ? THEN 'Monday' END AS Monday,
-            CASE WHEN tues_avail != ? THEN 'Tuesday' END AS Tuesday,
-            CASE WHEN wed_avail != ? THEN 'Wednesday' END AS Wednesday,
-            CASE WHEN thurs_avail != ? THEN 'Thursday' END AS Thursday,
-            CASE WHEN fri_avail != ? THEN 'Friday' END AS Friday
-        FROM 
-            employee_schedule_location
-        WHERE 
-            schedule_ID = ?
-    `;
-
-    // Execute both queries
-    db.query(fullyBookedDatesQuery, [doctorID], (err, fullyBookedResults) => {
-        if (err) {
-            console.error('Error fetching fully booked dates:', err);
-            return res.status(500).json({ error: 'Failed to retrieve fully booked dates' });
-        }
-
-        db.query(unavailableDaysQuery, [officeID, officeID, officeID, officeID, officeID, doctorID], (err, unavailableDaysResults) => {
-            if (err) {
-                console.error('Error fetching unavailable days:', err);
-                return res.status(500).json({ error: 'Failed to retrieve unavailable days' });
-            }
-
-            // Process unavailable days results to filter out null values
-            const unavailableDays = [];
-            unavailableDaysResults.forEach(row => {
-                if (row.Monday) unavailableDays.push(row.Monday);
-                if (row.Tuesday) unavailableDays.push(row.Tuesday);
-                if (row.Wednesday) unavailableDays.push(row.Wednesday);
-                if (row.Thursday) unavailableDays.push(row.Thursday);
-                if (row.Friday) unavailableDays.push(row.Friday);
-            });
-
-            // Combine results and send response
-            res.json({
-                fullyBookedDates: fullyBookedResults.map(row => row.unavailable_date),
-                unavailableDays: unavailableDays
-            });
-        });
-    });
-});
-
-
-
-app.get('/patient/appointments/time_slots', (req, res) => {
-    const { doctorID, date, facility } = req.query;
-    console.log(doctorID)
-    console.log(date)
-    console.log(facility)
-
-    if (!doctorID || !date || !facility) {
-        return res.status(400).json({ error: "Please provide  doctorID , date and facility" });
-    }
-    console.log(typeof doctorID, typeof date)
-    // SQL query to retrieve time slots
-    const query = `
-    SELECT 
-    DATE(dateTime) AS appointment_date,
-    HOUR(dateTime) AS appointment_hour,
-    DATE_FORMAT(dateTime, '%h:%i %p') AS time_slot
-    FROM 
-    appointment
-    WHERE 
-    doctorID =  ? and date(datetime) = ? and officeID = ?
-    ORDER BY
-    appointment_hour 
-    `;
-
-    db.query(query, [doctorID, date, facility], (err, results) => {
-        if (err) {
-
-            console.error('Error fetching time slots:', err);
-            return res.status(500).json({ error: 'Failed to retrieve time slots' });
-        }
-        console.log(results)
-        // Respond with the time slots
-        res.json({ timeSlots: results.map(row => row.time_slot) });
-    });
-});
-
-
-app.get('/patient/:id/appointments/upcoming_appointments', (req, res) => {
+app.post('/patient/:id/appointments/nurse_create_appointment', (req, res) => {
     const medicalId = req.params.id;
-    console.log('asdfasdfasdfasdfasdfasdf')
-    // Query to retrieve all upcoming appointments
-    const upcomingAppointmentQuery = `
-        SELECT a.dateTime, a.reason, a.doctor, o.name, o.address
-        FROM appointment as a 
-        LEFT JOIN office as o ON a.officeId = o.location_ID
-        WHERE a.patientmedicalID = ? AND a.dateTime > NOW()
-        ORDER BY a.dateTime;
-    `;
-
-    // Execute the query
-    db.query(upcomingAppointmentQuery, [medicalId], (err, upcomingAppointments) => {
-        if (err) {
-            // Handle error, send a 500 response
-            return res.status(500).json({ error: 'Failed to retrieve upcoming appointments', details: err });
-        }
-
-        // If there are no upcoming appointments, return an appropriate message
-        if (upcomingAppointments.length === 0) {
-            return res.status(404).json({ message: 'No upcoming appointments found for this patient' });
-        }
-
-        // Send the list of upcoming appointments in the response
-        res.json({
-            appointments: upcomingAppointments
-        });
-    });
-});
-
-app.post('/patient/:id/appointments/create_appointment', (req, res) => {
-    const medicalId = req.params.id;
+    console.log("patName is...", req.body.patName);
     const {
-        doctorId, nurseId, nurseName, facility,
+        patName, doctorId, nurseId, nurseName, facility,
         appointmentType, reason, date, timeSlot
     } = req.body;
 
@@ -2142,12 +2175,13 @@ app.post('/patient/:id/appointments/create_appointment', (req, res) => {
         // Prepare the SQL query to insert the new appointment
         const query = `
             INSERT INTO appointment 
-            (appointment_ID, patientmedicalID, doctor, nurse, doctorID,
-             appointment_type, nurseID, officeID, dateTime, reason, created_by) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            (patientName, appointment_ID, patientmedicalID, doctor, nurse, doctorID,
+             appointment_type, nurseID, officeID, dateTime, reason, created_by, patientBP, created_at) 
+            VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         `;
         console.log('asdfasdf', formattedDateTime)
         const values = [
+            patName,
             appointment_id,     // appointment_ID
             medicalId,          // patientmedicalID
             doctorName,         // doctor (name of doctor)
@@ -2158,7 +2192,9 @@ app.post('/patient/:id/appointments/create_appointment', (req, res) => {
             facility,           // officeID
             formattedDateTime, // dateTime
             reason,             // reason for the appointment
-            medicalId            // created_by (replace with actual user if applicable)
+            medicalId,
+            '120/80',
+            formattedDateTime,           // created_by (replace with actual user if applicable)
         ];
         console.log('values', values)
 
@@ -2176,6 +2212,7 @@ app.post('/patient/:id/appointments/create_appointment', (req, res) => {
         });
     });
 });
+
 app.get('/patient/:id/appointments/doctors', (req, res) => {
     const medicalId = req.params.id;
     console.log('asdfadfad', medicalId)
