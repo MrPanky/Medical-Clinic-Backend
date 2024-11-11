@@ -2083,20 +2083,37 @@ app.post("/nurse_assign_new_patient/:patientID", (req, res) => {
 })
 
 app.get("/nurse_get_app_history/:patientId", (req, res) => {
+    const { patientId } = req.params;
+    const { startDate, endDate } = req.query;  // Get the startDate and endDate from the query parameters
 
-    console.log("MESSAGE", req.params)
-    const patientId = req.params.patientId
-    console.log("patientId is....:)", patientId)
+    // Build the SQL query dynamically based on whether dates are provided
+    let q_appointment_history = `
+        SELECT patientName, patientWeight, dateTime, treatments
+        FROM appointment 
+        WHERE patientMedicalID = ?
+    `;
 
-    const q_appointment_history =
-        `SELECT patientName, patientWeight, dateTime
-         FROM appointment 
-         WHERE patientMedicalID = ?
-        `;
+    // If startDate and endDate are provided, add them to the query
+    if (startDate && endDate) {
+        q_appointment_history += ` AND dateTime BETWEEN ? AND ?`;
+    } else if (startDate) {
+        q_appointment_history += ` AND dateTime >= ?`;
+    } else if (endDate) {
+        q_appointment_history += ` AND dateTime <= ?`;
+    }
 
+    console.log('Executing query:', q_appointment_history);
 
-    console.log('executing query:', q_appointment_history);
-    db.query(q_appointment_history, patientId, (err, appointments) => {
+    const queryParams = [patientId];
+    if (startDate && endDate) {
+        queryParams.push(startDate, endDate);
+    } else if (startDate) {
+        queryParams.push(startDate);
+    } else if (endDate) {
+        queryParams.push(endDate);
+    }
+
+    db.query(q_appointment_history, queryParams, (err, appointments) => {
         if (err) {
             console.error(err);
             return res.status(500).json(err);
@@ -2104,6 +2121,7 @@ app.get("/nurse_get_app_history/:patientId", (req, res) => {
         return res.json(appointments);
     });
 });
+
 
 app.get("/nurse_get_patient_name/:patientId", (req, res) => {
 
