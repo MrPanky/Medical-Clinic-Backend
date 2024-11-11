@@ -590,6 +590,16 @@ db.query(q, (err, results) => {
 });
 
 
+app.get('/total_profit', (req, res) => {
+const q = `SELECT SUM(amountCharged) AS profit FROM invoices WHERE amountDue = 0`;
+
+db.query(q, (err, results) => {
+    if (err) return res.status(500).json(err);
+    return res.json({ profit: results[0].profit || 0 }); // Return profit or 0 if no results
+});
+});
+
+
 // get patient info by medical ID, including medical history and family history
 app.get('/patient/:id', (req, res) => {
 const medicalId = req.params.id;
