@@ -558,6 +558,50 @@ app.get('/total_profit', (req, res) => {
     });
 });
 
+app.get('/office_statistics', async (req, res) => {
+    const { location, startDate, endDate } = req.query;
+
+    // Validate parameters
+    if (!location || !startDate || !endDate) {
+        return res.status(400).json({ error: 'Location, start date, and end date are required.' });
+    }
+
+    const query = `
+       SELECT 
+    appointment.appointment_ID, 
+    appointment.patientName, 
+    appointment.doctor, 
+    appointment.nurse, 
+    appointment.appointment_type, 
+    appointment.dateTime, 
+    appointment.reason, 
+    appointment.treatments, 
+    appointment.diagnoses, 
+    appointment.allergies, 
+    appointment.patientWeight, 
+    appointment.patientBP, 
+    appointment.patientHR, 
+    billing_cost_table.cost AS appointment_cost,
+    SUM(billing_cost_table.cost) AS totalProfit, 
+    COUNT(appointment.appointment_type) AS appointmentCount
+FROM appointment
+JOIN billing_cost_table 
+    ON appointment.appointment_type = billing_cost_table.appointment_type
+WHERE appointment.officeID = ? 
+    AND appointment.dateTime BETWEEN ? AND ?
+GROUP BY appointment.appointment_ID
+ORDER BY appointment.dateTime;
+    `;
+
+    db.query(query, [location, startDate, endDate], (err, results) => {
+        if (err) {
+            console.error('Database query error:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results);  // Return both totalProfit and appointmentCount
+    });
+});
+
 
 // get patient info by medical ID, including medical history and family history
 app.get('/patient/:id', (req, res) => {
