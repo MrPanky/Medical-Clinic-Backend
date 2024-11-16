@@ -11,7 +11,25 @@ password:"Abcd1234",
 database:"medical_clinic_database", 
 port:3306, 
 });
+///
+const axios = require('axios');
 
+const url = 'https://group8backend.azurewebsites.net/ping';
+
+const pingServer = async () => {
+    try {
+        const response = await axios.get(url);
+        console.log(`Pinged ${url}: ${response.status} ${response.statusText}`);
+    } catch (error) {
+        console.error(`Error pinging ${url}:`, error.message);
+    }
+};
+
+// Ping the server immediately and then every 15 minutes
+pingServer();
+setInterval(pingServer, 15 * 60 * 1000); // 15 minutes in milliseconds
+
+//
 app.use(express.json());
 app.use(cors({
     origin: 'https://group8md.azurewebsites.net', 
