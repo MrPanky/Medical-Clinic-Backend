@@ -11,25 +11,7 @@ password:"Abcd1234",
 database:"medical_clinic_database", 
 port:3306, 
 });
-///
-const axios = require('axios');
 
-const url = 'https://group8backend.azurewebsites.net/ping';
-
-const pingServer = async () => {
-    try {
-        const response = await axios.get(url);
-        console.log(`Pinged ${url}: ${response.status} ${response.statusText}`);
-    } catch (error) {
-        console.error(`Error pinging ${url}:`, error.message);
-    }
-};
-
-// Ping the server immediately and then every 15 minutes
-pingServer();
-setInterval(pingServer, 15 * 60 * 1000); // 15 minutes in milliseconds
-
-//
 app.use(express.json());
 app.use(cors({
     origin: 'https://group8md.azurewebsites.net', 
@@ -1095,6 +1077,49 @@ app.get('/patient/:id/medical_records/test_history', (req, res) => {
         res.json({ tests: testHistoryData });
     });
 })
+
+app.get("/get_patient_phone/:patientId", (req, res) => {
+    console.log("ID being received at get_patient_phone is", ...req.params.patientId)
+    const patientId = req.params.patientId;
+
+    const q_retrieve_patient_phone =
+        `
+    SELECT home_phone
+    FROM patient
+    WHERE medical_ID = ?
+    `
+
+    db.query(q_retrieve_patient_phone, patientId, (err, data) => {
+        if (err) {
+            return res.json(err)
+        }
+        return res.json(data)
+    })
+})
+
+
+app.get("/medical_get_patient_name/:patientId", (req, res) => {
+
+    const patientId = req.params.patientId
+    console.log("patientId is....:)", patientId)
+
+    const q_patient_name =
+        `SELECT first_name, last_name
+         FROM patient 
+         WHERE medical_ID = ?
+        `;
+
+
+    console.log('executing query:', q_patient_name);
+    db.query(q_patient_name, patientId, (err, patientName) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json(err);
+        }
+        return res.json(patientName);
+    });
+});
+
 app.post('/patient/:id/my_account/password_change', (req, res) => {
     const medicalId = req.params.id;
     const newPassword = req.body.password;
@@ -1695,6 +1720,26 @@ app.get("/nurse_get_patient_name/:patientId", (req, res) => {
             return res.status(500).json(err);
         }
         return res.json(patientName);
+    });
+});
+
+//get appointment type
+app.get("/nurse_get_appointment_type/:doctorId", (req, res) => {
+    const doctorId = req.params.doctorId;
+    console.log("hi from index, doctorId is...", doctorId)
+
+    const q_app_type = 
+    `
+    SELECT specialty
+    FROM doctors
+    WHERE employee_ID = ?
+    `
+    db.query(q_app_type, doctorId, (err, appType) => {
+        if (err){
+            console.error(err);
+            return res.status(500).json(err);
+        }
+        return res.json(appType)
     });
 });
 
