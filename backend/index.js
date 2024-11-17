@@ -1218,7 +1218,6 @@ app.post('/patient/pay_invoice', (req, res) => {
 });
 
 
-//invoice queries
 // Get specific info for a patient
 app.post("/SearchPatient", (req, res) => {
     const { patientID, option, choice} = req.body;
@@ -1286,12 +1285,33 @@ app.post("/Search_Patient_ID", (req, res) => {
 
 
 
-// Get Appointments that have not been paid in 2 weeks
-app.get("/Past_Due_Patients", (req, res) => {
+// Get Appointments that have not been paid
+app.post("/Past_Due_Patients", (req, res) => {
 
-    const q = "SELECT  DISTINCT patient.billingID, patient.first_name, patient.last_name, patient.personal_email, home_phone, work_phone, cell_phone FROM invoice, patient WHERE (invoice.appointmentDateTime < DATE_SUB(CURDATE(), INTERVAL 14 DAY)) AND invoice.amountDue > 0 AND patient.billingID = invoice.patientBillingID;";
+    const q = `SELECT
+    invoice.patientBillingID,
+    invoice.patient_name,
+    patient.personal_email,
+    patient.home_phone,
+    invoice.appointmentDateTime,
+    invoice.amountDue
+FROM
+    invoice, appointment, patient
+WHERE
+	invoice.appointment_ID = appointment.appointment_ID AND invoice.patientBillingID = patient.billingID AND patient.medical_ID = appointment.patientmedicalID AND
+    invoice.appointmentDateTime BETWEEN ? AND ?
+    AND invoice.amountDue > 0;;
+`;
 
-    db.query(q, (err, data) => {
+    const values = [
+        req.body.params.startDate,
+        req.body.params.endDate,
+        req.body.params.location
+    ]
+
+    console.log(values[0]);
+
+    db.query(q, values, (err, data) => {
         if (err) return res.status(500).json(err);
         return res.json(data);
     });
