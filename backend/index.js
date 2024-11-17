@@ -1429,7 +1429,7 @@ app.post("/create_referral/:employee_ID", (req, res) => {
     console.log('executing query:', q_create_referral);
     db.query(q_create_referral, [...values], (err, data) => {
         if (err) return res.json(err);
-        return res.json("referral created");
+        return res.json("Referral created");
     })
 
 })
@@ -1621,7 +1621,7 @@ app.post("/nurse_create_patient/:employee_ID", (req, res) => {
     ]
     console.log('executing query:', q_create_patient);
     db.query(q_create_patient, [...values], (err, data) => {
-        if (err) return res.json(err);
+        if (err) return res.json("patient failed to create, please check all fields and try again");
         return res.json("patient created");
     })
 
